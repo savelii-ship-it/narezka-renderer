@@ -246,7 +246,8 @@ def process(job_id, job):
         output = CLIPS / f"{job_id}.mp4"
         render(video, job, start, auto_title, segments, output)
         upload_clip(job_id, output)
-        result = {"status": "done", "progress": 100, "clip_url": f"{PUBLIC_URL}/clips/{job_id}.mp4", "title": job["title"] or auto_title, "source_title": info.get("title", "Видео"), "start": start}
+        clip_base = CALLBACK if os.environ.get("CLIP_STORAGE") == "http" else PUBLIC_URL
+        result = {"status": "done", "progress": 100, "clip_url": f"{clip_base}/clips/{job_id}.mp4", "title": job["title"] or auto_title, "source_title": info.get("title", "Видео"), "start": start}
         JOBS[job_id] = result
         callback(job_id, result)
     except Exception as error:
@@ -296,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
             requested_id = str(job.get("id", ""))
             job_id = requested_id if re.fullmatch(r"[a-f0-9-]{36}", requested_id) else str(uuid.uuid4())
             if job_id in JOBS:
-                return self.json(409, {"error": "duplicate job"})
+                return self.json(202, {"id": job_id, "status": JOBS[job_id].get("status", "processing")})
             threading.Thread(target=process, args=(job_id, job), daemon=True).start()
             return self.json(202, {"id": job_id})
         match = re.fullmatch(r"/jobs/([a-f0-9-]+)", self.path)

@@ -230,18 +230,22 @@ def process(job_id, job):
     try:
         video, info = download(job["source"], folder)
         JOBS[job_id]["progress"] = 25
-        audio = folder / "speech.wav"
-        run([FFMPEG, "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(audio)], 300)
-        JOBS[job_id]["progress"] = 35
-        with MODEL_LOCK:
-            global MODEL
-            if MODEL is None:
-                accelerated = os.name == "posix" and os.uname().sysname == "Darwin"
-                MODEL = WhisperModel("tiny", device="mps" if accelerated else "cpu", compute_type="float16" if accelerated else "int8")
-            segments, _ = MODEL.transcribe(str(audio), language="ru", vad_filter=True, beam_size=1, condition_on_previous_text=False)
-            segments = list(segments)
+        is_community_clip = "/clip/" in (info.get("webpage_url") or "")
+        if is_community_clip:
+            segments, start, auto_title = [], 0.0, info.get("title", "ЛУЧШИЙ МОМЕНТ")
+        else:
+            audio = folder / "speech.wav"
+            run([FFMPEG, "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(audio)], 300)
+            JOBS[job_id]["progress"] = 35
+            with MODEL_LOCK:
+                global MODEL
+                if MODEL is None:
+                    accelerated = os.name == "posix" and os.uname().sysname == "Darwin"
+                    MODEL = WhisperModel("tiny", device="mps" if accelerated else "cpu", compute_type="float16" if accelerated else "int8")
+                segments, _ = MODEL.transcribe(str(audio), language="ru", vad_filter=True, beam_size=1, condition_on_previous_text=False)
+                segments = list(segments)
+            start, auto_title = highlight(segments, audio_peaks(video), job["duration"], job.get("wishes", ""))
         JOBS[job_id]["progress"] = 65
-        start, auto_title = highlight(segments, audio_peaks(video), job["duration"], job.get("wishes", ""))
         output = CLIPS / f"{job_id}.mp4"
         render(video, job, start, auto_title, segments, output)
         upload_clip(job_id, output)

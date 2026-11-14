@@ -82,7 +82,7 @@ def download(source, folder):
         "retries": 10,
         "fragment_retries": 20,
         "concurrent_fragment_downloads": 4,
-        "download_ranges": yt_dlp.utils.download_range_func(None, [(0, 300)]),
+        "download_ranges": yt_dlp.utils.download_range_func(None, [(0, 120)]),
         "ffmpeg_location": FFMPEG,
         "retry_sleep": {"http": lambda n: min(2 ** n, 30), "fragment": lambda n: min(2 ** n, 30)},
         "continuedl": True,

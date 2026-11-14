@@ -50,25 +50,37 @@ def run(args, timeout=1800):
     return result.stdout
 
 
-def resolve_source(source):
+def resolve_source(source, wishes="")
     """Turn a Twitch channel URL into its latest finished archive."""
     parsed = urlparse(source.strip())
     match = re.fullmatch(r"/([A-Za-z0-9_]+)(?:/(?:videos|home))?/?", parsed.path) if (parsed.hostname or "").lower() in {"twitch.tv", "www.twitch.tv", "m.twitch.tv"} else None
     if not match or match.group(1).lower() in {"videos", "directory", "downloads", "settings"}:
         return source
     channel = match.group(1)
-    playlist = f"https://www.twitch.tv/{channel}/clips?filter=clips&range=7d"
-    opts = {"extract_flat": True, "playlistend": 20, "quiet": True, "no_warnings": True, "socket_timeout": 30}
+    playlist = f"https://www.twitch.tv/{channel}/clips?filter=clips&range=30d"
+    opts = {"extract_flat": True, "playlistend": 30, "quiet": True, "no_warnings": True, "socket_timeout": 30}
+    wish_words = set(re.findall(r"[а-яa-z]{4,}", wishes.lower()))
+    def score(entry):
+        import math
+        title = (entry.get("title") or "").lower()
+        seconds = entry.get("duration") or 0
+        value = math.log10(max(1, entry.get("view_count") or 1)) * 4
+        value += 8 if seconds >= 12 else -22
+        value += 30 if re.search(r"смеш|угар|ору|рж|хах|лещ|переобул|конфликт|дааау", title) else 0
+        value += 24 if re.search(r"лучш|раунд|клатч|зажим|авп|3к|четко|прыжок", title) else 0
+        value -= 22 if re.search(r"про себя|по фактам|^фото$|^показываю$", title) else 0
+        value += sum(50 for word in wish_words if word in title)
+        return value
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(playlist, download=False)
         entries = [e for e in (info.get("entries") or []) if e and e.get("url")]
         if entries:
-            best = max(entries, key=lambda e: e.get("view_count") or 0)
+            best = max(entries, key=score)
             return best["url"]
-        raise ValueError("На канале нет популярных клипов за неделю. Пришлите ссылку на конкретное видео.")
+        raise ValueError("На канале нет популярных клипов за месяц. Пришлите ссылку на конкретное видео.")
 
-def download(source, folder):
-    source = resolve_source(source)
+def download(source, folder, wishes=""):
+    source = resolve_source(source, wishes)
     output = str(folder / "source.%(ext)s")
     opts = {
         "outtmpl": output,
@@ -228,7 +240,7 @@ def process(job_id, job):
     JOBS[job_id] = {"status": "processing", "progress": 5}
     folder = Path(tempfile.mkdtemp(prefix="narezka-"))
     try:
-        video, info = download(job["source"], folder)
+        video, info = download(job["source"], folder, job.get("wishes", ""))
         JOBS[job_id]["progress"] = 25
         is_community_clip = "/clip/" in (info.get("webpage_url") or "")
         if is_community_clip:

@@ -57,18 +57,15 @@ def resolve_source(source):
     if not match or match.group(1).lower() in {"videos", "directory", "downloads", "settings"}:
         return source
     channel = match.group(1)
-    playlist = f"https://www.twitch.tv/{channel}/videos?filter=archives&sort=time"
-    opts = {"extract_flat": True, "playlistend": 10, "quiet": True, "no_warnings": True, "socket_timeout": 30}
+    playlist = f"https://www.twitch.tv/{channel}/clips?filter=clips&range=7d"
+    opts = {"extract_flat": True, "playlistend": 20, "quiet": True, "no_warnings": True, "socket_timeout": 30}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(playlist, download=False)
-        entries = info.get("entries") or []
-        for entry in entries:
-            if entry and entry.get("url") and not entry.get("is_live") and (entry.get("duration") or 0) <= MAX_SECONDS:
-                return entry["url"]
-        if not entries:
-            raise ValueError("На канале нет публичных завершённых записей. Пришлите ссылку на конкретное видео.")
-    raise ValueError("На канале нет доступных завершённых записей до 12 часов. Пришлите ссылку на конкретное видео.")
-
+        entries = [e for e in (info.get("entries") or []) if e and e.get("url")]
+        if entries:
+            best = max(entries, key=lambda e: e.get("view_count") or 0)
+            return best["url"]
+        raise ValueError("На канале нет популярных клипов за неделю. Пришлите ссылку на конкретное видео.")
 
 def download(source, folder):
     source = resolve_source(source)

@@ -50,7 +50,7 @@ def run(args, timeout=1800):
     return result.stdout
 
 
-def resolve_source(source, wishes="")
+def resolve_source(source, wishes=""):
     """Turn a Twitch channel URL into its latest finished archive."""
     parsed = urlparse(source.strip())
     match = re.fullmatch(r"/([A-Za-z0-9_]+)(?:/(?:videos|home))?/?", parsed.path) if (parsed.hostname or "").lower() in {"twitch.tv", "www.twitch.tv", "m.twitch.tv"} else None
